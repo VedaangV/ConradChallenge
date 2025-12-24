@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Water Bodies – Algae Bloom Index</title>
+
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+
+    <style>
+        body {
+            margin: 0;
+            background-color: black;
+        }
+        #map {
+            height: 100vh;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+/* =======================
+   MAP INITIALIZATION
+======================= */
+const map = L.map('map').setView([40, -100], 4);
+
+L.tileLayer(
+    'https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png',
+    {
+        maxZoom: 19,
+        attribution: '© OpenStreetMap contributors © CARTO'
+    }
+).addTo(map);
+
+/* =======================
+   UTILITIES
+======================= */
+function clamp(x, min, max) {
+    return Math.max(min, Math.min(max, x));
+}
+
+/* =======================
+   WATER CHECK (API)
+======================= */
+async function isWater(lat, lon) {
+    return true;
+    const url = `https://is-on-water.balbona.me/api/v1/get/${lat}/${lon}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data.isWater;
+}
+
+/* =======================
+   ABI CALCULATION
+======================= */
+function getABI(entry) {
+    const temp = entry.temperature_c ?? entry.temp_c;
+
+    const tempScore = clamp((+temp - 15) / 15, 0, 1);
+    const turbScore = clamp(+entry.turbidity_v / 5, 0, 1);
+    const tdsScore  = clamp(+entry.tds / 500, 0, 1);
+    const pHScore   = clamp((+entry.ph - 7) / 2.5, 0, 1);
+
+    return (
+        0.35 * tempScore +
+        0.30 * turbScore +
+        0.20 * tdsScore +
+        0.15 * pHScore
+    );
+}
+
+/* =======================
+   ABI → COLOR
+======================= */
+function abiToColor(abi) {
+    const clamped = clamp(abi, 0, 1);
+    const hue = (1 - clamped) * 270; // purple → red
+    return `hsl(${hue}, 90%, 50%)`;
+}
+
+/* =======================
+   ADD MARKER
+======================= */
+async function addMarker(entry) {
+    
+    const lat = +entry.lat;
+    const lon = +entry.lon;
+    console.log("Drawing square at", lat, lon);
+
+    const water = await isWater(lat, lon);
+    if (!water) return;
+
+    const abi = getABI(entry);
+    const color = abiToColor(abi);
+
+    // --- 10m x 10m square ---
+    const half = 500; // meters
+    const dLat = half / 111320;
+    const dLon = half / (111320 * Math.cos(lat * Math.PI / 180));
+
+    const bounds = [
+        [lat - dLat, lon - dLon],
+        [lat + dLat, lon + dLon]
+    ];
+
+    L.rectangle(bounds, {
+        color: color,
+        weight: 0.5,
+        fillColor: color,
+        fillOpacity: 0.9
+    })
+    .addTo(map)
+    .bindPopup(`
+        <b>Latitude:</b> ${lat}<br>
+        <b>Longitude:</b> ${lon}<br>
+        <b>ABI:</b> ${abi.toFixed(3)}<br>
+        <b>Temperature:</b> ${entry.temperature_c ?? entry.temp_c} °C<br>
+        <b>TDS:</b> ${entry.tds} ppm<br>
+        <b>Turbidity:</b> ${entry.turbidity_v}<br>
+        <b>pH:</b> ${entry.ph}<br>
+        <b>Timestamp:</b> ${entry.timestamp}
+    `);
+}
+
+/* =======================
+   LOAD DATA
+======================= */
+fetch('coordinates.json')
+    .then(res => res.json())
+    .then(json => {
+        json.entries.forEach(entry => addMarker(entry));
+    })
+    .catch(err => console.error('Error loading JSON:', err));
+
+</script>
+
+</body>
+</html>
