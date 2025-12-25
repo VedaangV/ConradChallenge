@@ -97,8 +97,9 @@ async function addMarker(entry) {
     const water = await isWater(lat, lon);
     if (!water) return;
 
-    const abi = getABI(entry);
+    const abi = +entry.abi;
     const color = abiToColor(abi);
+    const weight = +entry.weight;
 
     // --- 10m x 10m square ---
     const half = 50; // meters
@@ -112,19 +113,19 @@ async function addMarker(entry) {
 
     L.rectangle(bounds, {
         color: color,
-        weight: 0.5,
+        weight: 0.1,
         fillColor: color,
-        fillOpacity: 0.9
+        fillOpacity: weight
     })
     .addTo(map)
     .bindPopup(`
         <b>Latitude:</b> ${lat}<br>
         <b>Longitude:</b> ${lon}<br>
-        <b>ABI:</b> ${abi.toFixed(3)}<br>
-        <b>Temperature:</b> ${entry.temperature_c ?? entry.temp_c} °C<br>
+        <b>ABI:</b> ${abi}<br>
+        <b>Temperature:</b> ${entry.temp} °C<br>
         <b>TDS:</b> ${entry.tds} ppm<br>
-        <b>Turbidity:</b> ${entry.turbidity_v}<br>
-        <b>pH:</b> ${entry.ph}<br>
+        <b>Turbidity:</b> ${entry.turbidity}<br>
+        <b>pH:</b> ${entry.pH}<br>
         <b>Timestamp:</b> ${entry.timestamp}
     `);
 }
@@ -135,7 +136,8 @@ async function addMarker(entry) {
 fetch('pixels.json')
     .then(res => res.json())
     .then(json => {
-        json.entries.forEach(entry => addMarker(entry));
+        // Loop through the 'pixels' array, not 'entries'
+        json.pixels.forEach(pixel => addMarker(pixel));
     })
     .catch(err => console.error('Error loading JSON:', err));
 
