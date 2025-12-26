@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import os
 
 # Path to the JSON file
-output_path = "watermap/src/test/lake_erie_test.json"
+output_path = "watermap/src/main/resources/lake_erie_test.json"
 
 # Delete existing file if it exists
 if os.path.exists(output_path):
@@ -13,7 +13,7 @@ if os.path.exists(output_path):
 entries = []
 start_time = datetime(2025, 12, 22, 0, 0, 0)
 
-for i in range(100):
+for i in range(1000):
     entry_time = start_time + timedelta(minutes=30*i)
     entry = {
         "timestamp": entry_time.isoformat() + "Z",

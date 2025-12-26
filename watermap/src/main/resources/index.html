@@ -134,7 +134,7 @@ async function addMarker(entry) {
 /* =======================
    LOAD DATA
 ======================= */
-fetch('pixels.json')
+fetch('/pixels')
     .then(res => res.json())
     .then(json => {
         // Loop through the 'pixels' array, not 'entries'

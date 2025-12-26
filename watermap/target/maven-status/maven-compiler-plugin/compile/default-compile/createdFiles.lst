@@ -1,4 +1,5 @@
-watermap\Grid$Pixel.class
-watermap\Main.class
+watermap\Pixel.class
+watermap\WatermapProcessor.class
+watermap\WatermapApplication.class
 watermap\Grid.class
 watermap\WaterMask.class
