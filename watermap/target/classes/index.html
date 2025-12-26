@@ -113,7 +113,7 @@ async function addMarker(entry) {
 
     L.rectangle(bounds, {
         color: color,
-        weight: 0.1,
+        weight: weight,
         fillColor: color,
         fillOpacity: weight
     })
@@ -122,11 +122,12 @@ async function addMarker(entry) {
         <b>Latitude:</b> ${lat}<br>
         <b>Longitude:</b> ${lon}<br>
         <b>ABI:</b> ${abi}<br>
-        <b>Temperature:</b> ${entry.temp} °C<br>
-        <b>TDS:</b> ${entry.tds} ppm<br>
-        <b>Turbidity:</b> ${entry.turbidity}<br>
-        <b>pH:</b> ${entry.pH}<br>
-        <b>Timestamp:</b> ${entry.timestamp}
+        <b>Temperature:</b> ${+entry.temp} °C<br>
+        <b>TDS:</b> ${+entry.tds} ppm<br>
+        <b>Turbidity:</b> ${+entry.turbidity}<br>
+        <b>pH:</b> ${+entry.pH}<br>
+        <b>Timestamp:</b> ${entry.timestamp}<br>
+        <b>Confidence:</b> ${+entry.weight}
     `);
 }
 

@@ -3,6 +3,7 @@ package watermap;
 
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -23,7 +24,11 @@ public class Main {
         ObjectMapper mapper = new ObjectMapper();
 
         // Read from resources (works both in IDE and in JAR)
-        InputStream jsonStream = Main.class.getClassLoader().getResourceAsStream("coordinates.json");
+        //InputStream jsonStream = Main.class.getClassLoader().getResourceAsStream("coordinates.json");
+
+        File jsonFile = new File("watermap/src/test/lake_erie_test.json");
+        InputStream jsonStream = new FileInputStream(jsonFile); 
+
         if (jsonStream == null) {
             throw new IllegalArgumentException("coordinates.json not found in resources");
         }
@@ -46,7 +51,7 @@ public class Main {
             int px = coords[0];
             int py = coords[1];
 
-            grid.addData(px, py, pH, turbidity, tds, temp);
+            grid.addData(px, py, pH, turbidity, tds, temp, timestamp);
         }
 
         grid.exportData();
@@ -106,6 +111,7 @@ final class Grid {
         double temp;
         double abi;
         double weight;
+        String timestamp;
 
         Pixel(int px, int py) {
             this.px = px;
@@ -117,18 +123,21 @@ final class Grid {
                 double turbidity,
                 double tds,
                 double temp,
-                double w
+                double w,
+                String timestamp
         ) {
             if (weight == 0) {
                 this.pH = pH;
                 this.turbidity = turbidity;
                 this.tds = tds;
                 this.temp = temp;
+                this.timestamp = timestamp;
             } else {
                 this.pH = (this.pH * weight + pH * w) / (weight + w);
                 this.turbidity = (this.turbidity * weight + turbidity * w) / (weight + w);
                 this.tds = (this.tds * weight + tds * w) / (weight + w);
                 this.temp = (this.temp * weight + temp * w) / (weight + w);
+                this.timestamp = timestamp;
             }
 
             this.abi = getABI(this.pH, this.turbidity, this.tds, this.temp);
@@ -189,7 +198,8 @@ final class Grid {
             double pH,
             double turbidity,
             double tds,
-            double temp
+            double temp, 
+            String timestamp
     ) {
 
         if (!isWaterPixel(startPx, startPy)) {
@@ -207,7 +217,7 @@ final class Grid {
             int py = n[1];
             int level = n[2];
 
-            double w = Math.pow(0.5, level);
+            double w = Math.pow(0.8, level);
             if (w < MIN_WEIGHT) continue;
 
             long key = pixelToKey(px, py);
@@ -217,7 +227,7 @@ final class Grid {
             if (!isWaterPixel(px, py)) continue;
 
             Pixel p = pixels.computeIfAbsent(key, k -> new Pixel(px, py));
-            p.updateVals(pH, turbidity, tds, temp, w);
+            p.updateVals(pH, turbidity, tds, temp, w, timestamp);
 
             q.add(new int[]{px - 1, py, level + 1});
             q.add(new int[]{px + 1, py, level + 1});
@@ -229,10 +239,10 @@ final class Grid {
     public void exportData() throws Exception {
 
         List<Map<String, Object>> outPixels = new ArrayList<>();
-
+    
         for (Pixel p : pixels.values()) {
             double[] latLon = pixelToCenterLatLon(p.px, p.py);
-
+    
             Map<String, Object> obj = new HashMap<>();
             obj.put("lat", latLon[0]);
             obj.put("lon", latLon[1]);
@@ -244,17 +254,33 @@ final class Grid {
             obj.put("temp", p.temp);
             obj.put("abi", p.abi);
             obj.put("weight", p.weight);
-
+            obj.put("timestamp", p.timestamp);
+    
             outPixels.add(obj);
         }
-
+    
         Map<String, Object> root = new HashMap<>();
         root.put("pixelSizeMeters", PIXEL_SIZE_METERS);
         root.put("pixelCount", outPixels.size());
         root.put("pixels", outPixels);
-
+    
+        // Path to resources folder
+        File resourcesFolder = new File("watermap/src/main/resources");
+        if (!resourcesFolder.exists()) {
+            resourcesFolder.mkdirs(); // create resources folder if it doesn't exist
+        }
+    
+        File jsonFile = new File(resourcesFolder, "pixels.json");
+    
+        // Check if file exists, delete if it does
+        if (jsonFile.exists()) {
+            if (!jsonFile.delete()) {
+                throw new RuntimeException("Failed to delete existing pixels.json");
+            }
+        }
+    
         ObjectMapper mapper = new ObjectMapper();
         mapper.enable(SerializationFeature.INDENT_OUTPUT);
-        mapper.writeValue(new File("pixels.json"), root);
+        mapper.writeValue(jsonFile, root);
     }
 }
