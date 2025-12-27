@@ -11,12 +11,16 @@ import java.util.Queue;
 
 import javax.imageio.ImageIO;
 
+import org.springframework.stereotype.Service;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 /**
  * Generates pixel data entirely IN MEMORY.
  * No filesystem usage. Safe for Railway / containers.
  */
+
+@Service
 public class WatermapProcessor {
 
     public Map<String, Object> run() throws Exception {
