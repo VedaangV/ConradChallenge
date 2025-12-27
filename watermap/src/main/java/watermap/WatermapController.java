@@ -1,37 +1,43 @@
 package watermap;
 
 import java.io.File;
-import java.io.IOException;
 import java.nio.file.Path;
+import java.time.Instant;
 
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class WatermapController {
 
-    // Allow all origins to call this endpoint (for HTML fetch)
-    @CrossOrigin(origins = "*")
+    private static final String DATA_FOLDER = "./data";
+    private static final String PIXELS_FILE = "pixels.json";
+
     @GetMapping("/generatePixels")
     public ResponseEntity<String> generatePixels() throws Exception {
-        // Run your Java logic to generate pixels.json
+        // Manually trigger pixel generation
         WatermapProcessor processor = new WatermapProcessor();
         processor.run();  // generates pixels.json in ./data folder
         return ResponseEntity.ok("Pixels generated");
     }
 
-    // Allow all origins to fetch the JSON
-    @CrossOrigin(origins = "*")
     @GetMapping("/data/pixels.json")
-    public ResponseEntity<Resource> getPixelsJson() throws IOException {
-        // Serve pixels.json from ./data folder
-        File jsonFile = new File("./data/pixels.json");
+    public ResponseEntity<Resource> getPixelsJson() throws Exception {
+        File folder = new File(DATA_FOLDER);
+        if (!folder.exists()) folder.mkdirs();
+
+        File jsonFile = new File(folder, PIXELS_FILE);
+
+        // Regenerate JSON if it doesn't exist or is older than 1 hour
+        if (!jsonFile.exists() || Instant.now().toEpochMilli() - jsonFile.lastModified() > 3600_000) {
+            WatermapProcessor processor = new WatermapProcessor();
+            processor.run();
+        }
+
         if (!jsonFile.exists()) {
             return ResponseEntity.notFound().build();
         }
@@ -40,7 +46,6 @@ public class WatermapController {
         Resource resource = new UrlResource(filePath.toUri());
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"pixels.json\"")
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(resource);
     }
