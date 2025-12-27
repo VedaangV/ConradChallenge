@@ -1,0 +1,11 @@
+# Maven build output
+/watermap/target/
+
+# Runtime-generated data
+/watermap/data/
+
+# IDE metadata
+.metadata/
+
+# Logs
+*.log

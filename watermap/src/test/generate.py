@@ -11,9 +11,9 @@ if os.path.exists(output_path):
     os.remove(output_path)
 
 entries = []
-start_time = datetime(2025, 12, 22, 0, 0, 0)
+start_time = datetime(2025, 12, 27, 0, 0, 0)
 
-for i in range(500):
+for i in range(1000):
     entry_time = start_time + timedelta(minutes=30*i)
     entry = {
         "timestamp": entry_time.isoformat() + "Z",
