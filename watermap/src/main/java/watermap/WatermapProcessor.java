@@ -1,8 +1,8 @@
 package watermap;
 
-
 import java.awt.image.BufferedImage;
-import java.io.*;
+import java.io.File;
+import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -12,10 +12,10 @@ import java.util.Queue;
 
 import javax.imageio.ImageIO;
 
+import org.springframework.stereotype.Service;
+
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-
-import org.springframework.stereotype.Service;
 
 @Service
 public class WatermapProcessor {
@@ -24,13 +24,12 @@ public class WatermapProcessor {
 
         ObjectMapper mapper = new ObjectMapper();
 
-        // Read from resources (works both in IDE and in JAR)
-        //InputStream jsonStream = Main.class.getClassLoader().getResourceAsStream("coordinates.json");
-
-        InputStream jsonStream = getClass().getClassLoader().getResourceAsStream("lake_erie_test.json"); 
+        // Read from classpath (works both in IDE and in JAR)
+        InputStream jsonStream = WatermapProcessor.class.getClassLoader()
+                .getResourceAsStream("static/data/lake_erie_test.json");
 
         if (jsonStream == null) {
-            throw new IllegalArgumentException("coordinates.json not found in resources");
+            throw new IllegalArgumentException("lake_erie_test.json not found in resources");
         }
 
         Map<String, Object> root = mapper.readValue(jsonStream, Map.class);
@@ -64,7 +63,9 @@ final class WaterMask {
 
     static {
         try {
-            InputStream imageStream = WatermapProcessor.class.getClassLoader().getResourceAsStream("water_mask.png");
+            InputStream imageStream = WatermapProcessor.class.getClassLoader()
+                    .getResourceAsStream("static/data/water_mask.png");
+
             if (imageStream == null) {
                 throw new IllegalArgumentException("water_mask.png not found in resources");
             }
@@ -102,7 +103,6 @@ final class Grid {
 
     HashMap<Long, Pixel> pixels = new HashMap<>();
 
-
     static double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
     }
@@ -113,11 +113,10 @@ final class Grid {
         double tdsScore = clamp(tds / 500.0, 0.0, 1.0);
         double pHScore = clamp((ph - 7.0) / 2.5, 0.0, 1.0);
 
-        return
-                0.35 * tempScore +
-                0.30 * turbScore +
-                0.20 * tdsScore +
-                0.15 * pHScore;
+        return 0.35 * tempScore +
+               0.30 * turbScore +
+               0.20 * tdsScore +
+               0.15 * pHScore;
     }
 
     boolean isWaterPixel(int px, int py) {
@@ -144,8 +143,7 @@ final class Grid {
         double centerLat = centerLatMeters / 111320;
 
         double centerLonMeters = (px + 0.5) * PIXEL_SIZE_METERS;
-        double centerLon =
-                centerLonMeters / (111320 * Math.cos(centerLat * Math.PI / 180));
+        double centerLon = centerLonMeters / (111320 * Math.cos(centerLat * Math.PI / 180));
 
         return new double[]{centerLat, centerLon};
     }
@@ -160,9 +158,7 @@ final class Grid {
             String timestamp
     ) {
 
-        if (!isWaterPixel(startPx, startPy)) {
-            return;
-        }
+        if (!isWaterPixel(startPx, startPy)) return;
 
         Map<Long, Boolean> visited = new HashMap<>();
         Queue<int[]> q = new ArrayDeque<>();
@@ -197,10 +193,10 @@ final class Grid {
     public void exportData() throws Exception {
 
         List<Map<String, Object>> outPixels = new ArrayList<>();
-    
+
         for (Pixel p : pixels.values()) {
             double[] latLon = pixelToCenterLatLon(p.px, p.py);
-    
+
             Map<String, Object> obj = new HashMap<>();
             obj.put("lat", latLon[0]);
             obj.put("lon", latLon[1]);
@@ -213,30 +209,25 @@ final class Grid {
             obj.put("abi", p.abi);
             obj.put("weight", p.weight);
             obj.put("timestamp", p.timestamp);
-    
+
             outPixels.add(obj);
         }
-    
+
         Map<String, Object> root = new HashMap<>();
         root.put("pixelSizeMeters", PIXEL_SIZE_METERS);
         root.put("pixelCount", outPixels.size());
         root.put("pixels", outPixels);
-    
-        // Path to resources folder
-        File resourcesFolder = new File("watermap/src/main/resources");
-        if (!resourcesFolder.exists()) {
-            resourcesFolder.mkdirs(); // create resources folder if it doesn't exist
+
+        // Write output JSON to external folder
+        File folder = new File("./data");
+        if (!folder.exists()) folder.mkdirs();
+
+        File jsonFile = new File(folder, "pixels.json");
+
+        if (jsonFile.exists() && !jsonFile.delete()) {
+            throw new RuntimeException("Failed to delete existing pixels.json");
         }
-    
-        File jsonFile = new File(resourcesFolder, "pixels.json");
-    
-        // Check if file exists, delete if it does
-        if (jsonFile.exists()) {
-            if (!jsonFile.delete()) {
-                throw new RuntimeException("Failed to delete existing pixels.json");
-            }
-        }
-    
+
         ObjectMapper mapper = new ObjectMapper();
         mapper.enable(SerializationFeature.INDENT_OUTPUT);
         mapper.writeValue(jsonFile, root);
