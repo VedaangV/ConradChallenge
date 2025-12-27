@@ -24,7 +24,7 @@ public class WatermapProcessor {
 
         ObjectMapper mapper = new ObjectMapper();
 
-        // Read from classpath (works both in IDE and in JAR)
+        // Read from classpath (works both in IDE and JAR)
         InputStream jsonStream = WatermapProcessor.class.getClassLoader()
                 .getResourceAsStream("static/data/lake_erie_test.json");
 
@@ -76,7 +76,6 @@ final class WaterMask {
     }
 
     public static boolean isWater(double lat, double lon) {
-
         if (lat > 90 || lat < -90 || lon > 180 || lon < -180) {
             return false;
         }
@@ -154,15 +153,13 @@ final class Grid {
             double pH,
             double turbidity,
             double tds,
-            double temp, 
+            double temp,
             String timestamp
     ) {
-
         if (!isWaterPixel(startPx, startPy)) return;
 
         Map<Long, Boolean> visited = new HashMap<>();
         Queue<int[]> q = new ArrayDeque<>();
-
         q.add(new int[]{startPx, startPy, 0});
 
         while (!q.isEmpty()) {
@@ -193,7 +190,6 @@ final class Grid {
     public void exportData() throws Exception {
 
         List<Map<String, Object>> outPixels = new ArrayList<>();
-
         for (Pixel p : pixels.values()) {
             double[] latLon = pixelToCenterLatLon(p.px, p.py);
 
@@ -218,12 +214,14 @@ final class Grid {
         root.put("pixelCount", outPixels.size());
         root.put("pixels", outPixels);
 
-        // Write output JSON to external folder
+        // Ensure ./data folder exists
         File folder = new File("./data");
-        if (!folder.exists()) folder.mkdirs();
+        if (!folder.exists() && !folder.mkdirs()) {
+            throw new RuntimeException("Failed to create ./data folder");
+        }
 
+        // Write pixels.json
         File jsonFile = new File(folder, "pixels.json");
-
         if (jsonFile.exists() && !jsonFile.delete()) {
             throw new RuntimeException("Failed to delete existing pixels.json");
         }
