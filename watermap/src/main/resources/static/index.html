@@ -76,13 +76,9 @@ function abiToColor(abi) {
 /* =======================
    ADD MARKER
 ======================= */
-async function addMarker(entry) {
+function addMarker(entry) {
     const lat = +entry.lat;
     const lon = +entry.lon;
-
-    // Optionally, check if water (placeholder)
-    // const water = true; 
-    // if (!water) return;
 
     const abi = +entry.abi ?? getABI(entry);
     const color = abiToColor(abi);
@@ -124,27 +120,26 @@ async function addMarker(entry) {
 async function loadPixels() {
     try {
         const backendURL = 'https://conradchallenge-production.up.railway.app';
-        
-        // Step 1: trigger processor on hosted backend
-        const genResp = await fetch(`${backendURL}/generatePixels`);
-        if (!genResp.ok) throw new Error('Failed to run processor');
-        console.log("Processor ran successfully");
 
-        // Step 2: fetch updated pixels JSON from hosted backend
-        const dataResp = await fetch(`${backendURL}/data/pixels.json?t=${Date.now()}`);
-        if (!dataResp.ok) throw new Error('Failed to fetch pixels.json');
+        const dataResp = await fetch(
+            `${backendURL}/data/pixels.json?t=${Date.now()}`
+        );
+
+        if (!dataResp.ok) {
+            throw new Error('Failed to fetch pixels.json');
+        }
 
         const json = await dataResp.json();
 
         for (const pixel of json.pixels) {
-            await addMarker(pixel); // ensure sequential rendering
+            addMarker(pixel);
         }
+
     } catch (err) {
         console.error('Error loading pixels:', err);
     }
 }
 
-// Run on page load
 window.onload = loadPixels;
 </script>
 

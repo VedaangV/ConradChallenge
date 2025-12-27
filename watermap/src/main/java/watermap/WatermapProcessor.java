@@ -1,7 +1,6 @@
 package watermap;
 
 import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -12,28 +11,32 @@ import java.util.Queue;
 
 import javax.imageio.ImageIO;
 
-import org.springframework.stereotype.Service;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 
-@Service
+/**
+ * Generates pixel data entirely IN MEMORY.
+ * No filesystem usage. Safe for Railway / containers.
+ */
 public class WatermapProcessor {
 
-    public void run() throws Exception {
+    public Map<String, Object> run() throws Exception {
 
         ObjectMapper mapper = new ObjectMapper();
 
-        // Read from classpath (works both in IDE and JAR)
-        InputStream jsonStream = WatermapProcessor.class.getClassLoader()
+        // Read lake_erie_test.json from classpath
+        InputStream jsonStream = WatermapProcessor.class
+                .getClassLoader()
                 .getResourceAsStream("static/data/lake_erie_test.json");
 
         if (jsonStream == null) {
             throw new IllegalArgumentException("lake_erie_test.json not found in resources");
         }
 
-        Map<String, Object> root = mapper.readValue(jsonStream, Map.class);
-        List<Map<String, Object>> entries = (List<Map<String, Object>>) root.get("entries");
+        Map<String, Object> root =
+                mapper.readValue(jsonStream, Map.class);
+
+        List<Map<String, Object>> entries =
+                (List<Map<String, Object>>) root.get("entries");
 
         Grid grid = new Grid();
 
@@ -47,35 +50,48 @@ public class WatermapProcessor {
             String timestamp = (String) e.get("timestamp");
 
             int[] coords = grid.latLonToPixel(lat, lon);
-            int px = coords[0];
-            int py = coords[1];
-
-            grid.addData(px, py, pH, turbidity, tds, temp, timestamp);
+            grid.addData(
+                coords[0],
+                coords[1],
+                pH,
+                turbidity,
+                tds,
+                temp,
+                timestamp
+            );
         }
 
-        grid.exportData();
+        // IMPORTANT: return JSON instead of writing to disk
+        return grid.exportData();
     }
 }
 
+/* ===================================================== */
+
 final class WaterMask {
 
-    private static BufferedImage mask;
+    private static final BufferedImage mask;
 
     static {
         try {
-            InputStream imageStream = WatermapProcessor.class.getClassLoader()
-                    .getResourceAsStream("static/data/water_mask.png");
+            InputStream imageStream =
+                    WatermapProcessor.class
+                            .getClassLoader()
+                            .getResourceAsStream("static/data/water_mask.png");
 
             if (imageStream == null) {
                 throw new IllegalArgumentException("water_mask.png not found in resources");
             }
+
             mask = ImageIO.read(imageStream);
+
         } catch (Exception e) {
             throw new RuntimeException("Failed to load water_mask.png", e);
         }
     }
 
     public static boolean isWater(double lat, double lon) {
+
         if (lat > 90 || lat < -90 || lon > 180 || lon < -180) {
             return false;
         }
@@ -95,6 +111,8 @@ final class WaterMask {
     }
 }
 
+/* ===================================================== */
+
 final class Grid {
 
     static final int PIXEL_SIZE_METERS = 100;
@@ -102,8 +120,8 @@ final class Grid {
 
     HashMap<Long, Pixel> pixels = new HashMap<>();
 
-    static double clamp(double value, double min, double max) {
-        return Math.max(min, Math.min(max, value));
+    static double clamp(double v, double min, double max) {
+        return Math.max(min, Math.min(max, v));
     }
 
     static double getABI(double ph, double turbidity, double tds, double temp) {
@@ -130,21 +148,20 @@ final class Grid {
     int[] latLonToPixel(double lat, double lon) {
         double latMeters = lat * 111320;
         double lonMeters = lon * 111320 * Math.cos(lat * Math.PI / 180);
-
-        int px = (int) Math.floor(lonMeters / PIXEL_SIZE_METERS);
-        int py = (int) Math.floor(latMeters / PIXEL_SIZE_METERS);
-
-        return new int[]{px, py};
+        return new int[] {
+            (int) Math.floor(lonMeters / PIXEL_SIZE_METERS),
+            (int) Math.floor(latMeters / PIXEL_SIZE_METERS)
+        };
     }
 
     double[] pixelToCenterLatLon(int px, int py) {
-        double centerLatMeters = (py + 0.5) * PIXEL_SIZE_METERS;
-        double centerLat = centerLatMeters / 111320;
+        double latMeters = (py + 0.5) * PIXEL_SIZE_METERS;
+        double lat = latMeters / 111320;
 
-        double centerLonMeters = (px + 0.5) * PIXEL_SIZE_METERS;
-        double centerLon = centerLonMeters / (111320 * Math.cos(centerLat * Math.PI / 180));
+        double lonMeters = (px + 0.5) * PIXEL_SIZE_METERS;
+        double lon = lonMeters / (111320 * Math.cos(lat * Math.PI / 180));
 
-        return new double[]{centerLat, centerLon};
+        return new double[]{lat, lon};
     }
 
     public void addData(
@@ -156,6 +173,7 @@ final class Grid {
             double temp,
             String timestamp
     ) {
+
         if (!isWaterPixel(startPx, startPy)) return;
 
         Map<Long, Boolean> visited = new HashMap<>();
@@ -168,8 +186,8 @@ final class Grid {
             int py = n[1];
             int level = n[2];
 
-            double w = Math.pow(0.8, level);
-            if (w < MIN_WEIGHT) continue;
+            double weight = Math.pow(0.8, level);
+            if (weight < MIN_WEIGHT) continue;
 
             long key = pixelToKey(px, py);
             if (visited.containsKey(key)) continue;
@@ -178,7 +196,7 @@ final class Grid {
             if (!isWaterPixel(px, py)) continue;
 
             Pixel p = pixels.computeIfAbsent(key, k -> new Pixel(px, py));
-            p.updateVals(pH, turbidity, tds, temp, w, timestamp);
+            p.updateVals(pH, turbidity, tds, temp, weight, timestamp);
 
             q.add(new int[]{px - 1, py, level + 1});
             q.add(new int[]{px + 1, py, level + 1});
@@ -187,9 +205,10 @@ final class Grid {
         }
     }
 
-    public void exportData() throws Exception {
+    public Map<String, Object> exportData() {
 
         List<Map<String, Object>> outPixels = new ArrayList<>();
+
         for (Pixel p : pixels.values()) {
             double[] latLon = pixelToCenterLatLon(p.px, p.py);
 
@@ -214,20 +233,6 @@ final class Grid {
         root.put("pixelCount", outPixels.size());
         root.put("pixels", outPixels);
 
-        // Ensure ./data folder exists
-        File folder = new File("./data");
-        if (!folder.exists() && !folder.mkdirs()) {
-            throw new RuntimeException("Failed to create ./data folder");
-        }
-
-        // Write pixels.json
-        File jsonFile = new File(folder, "pixels.json");
-        if (jsonFile.exists() && !jsonFile.delete()) {
-            throw new RuntimeException("Failed to delete existing pixels.json");
-        }
-
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.enable(SerializationFeature.INDENT_OUTPUT);
-        mapper.writeValue(jsonFile, root);
+        return root;
     }
 }

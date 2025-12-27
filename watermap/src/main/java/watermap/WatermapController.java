@@ -1,9 +1,7 @@
 package watermap;
 
-import java.io.File;
+import java.util.Map;
 
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -18,26 +16,20 @@ public class WatermapController {
         this.processor = processor;
     }
 
-    @GetMapping("/data/pixels.json")
-    public ResponseEntity<Resource> getPixelsJson() {
+    @GetMapping(
+        value = "/data/pixels.json",
+        produces = MediaType.APPLICATION_JSON_VALUE
+    )
+    public ResponseEntity<Map<String, Object>> getPixelsJson() {
         try {
-            processor.run();
+            // Generate pixels IN MEMORY
+            Map<String, Object> result = processor.run();
 
-            File jsonFile = new File("./data/pixels.json");
-            if (!jsonFile.exists()) {
-                return ResponseEntity.notFound().build();
-            }
-
-            Resource resource = new UrlResource(jsonFile.toPath().toUri());
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(resource);
+            return ResponseEntity.ok(result);
 
         } catch (Exception e) {
-            e.printStackTrace(); // <-- THIS IS CRITICAL
-            return ResponseEntity.internalServerError()
-                    .body(null);
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().build();
         }
     }
 }
